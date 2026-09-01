@@ -85,69 +85,73 @@ the climb, cruise and descent, and an autothrottle.
 
 ## Design notes
 
-**One energy model, two consumers.** `excess_accel` — thrust minus drag minus
-the climb — is the entire performance model. The integrator moves the aircraft
-with it, and the autopilot evaluates it at full thrust to decide how much climb
-it may ask for. Because it is the same function, the autopilot's belief about
-the aircraft's performance cannot drift away from the aircraft's actual
-performance, which is exactly what happens when a simulator carries a separate
-hand-tuned climb table.
+**One energy model, used by both the aircraft and its autopilot.**
+`excess_accel(thrust, climb)` returns what is left of the thrust once drag and
+the climb have been paid for. That one function is the entire performance
+model. The integrator uses it to accelerate the aircraft. The autopilot calls
+it with the throttles at the stop to ask *how much climb can I afford right
+now*, and never commands more than that. Because it is literally the same
+function, the autopilot's idea of the aircraft cannot drift away from the
+aircraft — which is what happens when a simulator keeps a hand-tuned climb
+table alongside its physics.
 
-**Speed on the elevator in the climb, on the thrust levers otherwise.** The
-airspeed and the climb rate want to spend the same excess thrust, so exactly one
-channel owns the speed at any moment. Climbing, the thrust levers go to the
-limit and stay there while the vertical channel gives up climb rate to hold the
-speed. Level or descending, that inverts. Letting both chase the speed at once
-is the classic way to get an autoflight system fighting itself.
+**Only one channel controls the airspeed at a time.** Climb rate and airspeed
+are bought with the same surplus thrust, so if the throttles and the elevator
+both chase the speed they fight each other. Climbing, the throttles stay at the
+limit and the elevator owns the speed: ask for more climb than the engines can
+pay for and the aircraft gives back climb rate, not knots. Level or descending,
+the roles swap — pitch holds the altitude, the throttles hold the speed.
 
-**Fix passage is detected, not assumed.** Sequencing a waypoint when the
-distance to it drops below a threshold works until it does not: the last fix has
-no turn to anticipate, so it gets a small threshold, and a crosswind that leaves
-the aircraft a few hundred metres to one side sails straight past it *outside*
-that radius. The flight then tracks a leg it has already flown, for ever. So
-passage is also detected the way it is in practice — within a few miles, the
-moment the distance stops falling and starts rising, the fix is behind you.
-`test_a_crosswind_does_not_stop_the_last_fix_sequencing` is that bug, pinned.
+**The aircraft flies its track, not its heading.** Position is advanced along
+the ground track that falls out of the wind triangle, and the lateral channel
+subtracts the drift it is actually measuring from the heading it commands.
+Without that second half, every leg flown in a crosswind ends up downwind of
+where it should.
 
-**Top of descent is computed, not configured.** It is wherever the descent still
-to be made becomes steeper than a three degree path: height to lose over current
-ground speed. A headwind moves it automatically, which is the whole reason to
-compute it rather than hard-code 100 miles.
+**A fix is passed when the distance to it starts growing again.** The usual
+rule — sequence once the distance drops below a threshold — breaks on the last
+fix. It has no following turn to anticipate, so its threshold is small, and a
+crosswind that leaves the aircraft a few hundred metres to one side sails past
+it *outside* that radius. The route then never completes: the aircraft tracks a
+leg it has already flown, for ever. So there are two tests for passage —
+inside the turn-anticipation distance, or within three miles and getting
+further away. `test_a_crosswind_does_not_stop_the_last_fix_sequencing` pins
+that bug.
 
-**A fixed 50 ms step, and no clock in the physics.** `advance(seconds)` runs a
-whole number of cycles and returns. Identical inputs give identical flights, bit
-for bit — two tests hold this down, including one that an hour advanced in one
-call must equal an hour advanced in sixty.
+**Top of descent is computed every cycle, not configured.** Compare the height
+still to lose against the distance still to run; when that works out steeper
+than a three degree path, start down. A headwind cuts the ground speed and the
+top of descent moves back on its own, which is the whole reason to compute it
+instead of hard-coding 100 miles.
 
-**Fly the track, not the heading.** The position is advanced along the ground
-track from the wind triangle, and the lateral channel takes the measured drift
-out of the heading it commands. Without that, every crosswind leg ends downwind
-of where it should.
+**A fixed 50 ms step, and nothing in the physics reads a clock.**
+`advance(seconds)` runs a whole number of cycles and returns. No wall time and
+no random numbers, so identical inputs give an identical flight, bit for bit.
+Two tests hold this down, including one that an hour advanced in a single call
+must match an hour advanced in sixty.
 
 ## Scope
 
-Written to be read, and small on purpose. Some things it deliberately is not:
+Small on purpose, and written to be read. It models an aircraft's *performance*
+along a route, the way a flight-planning backend does — not the flying of one.
+So:
 
-**Not a flight dynamics model.** No attitude integration, no yaw or sideslip, no
-lift equation, no stall, no control surfaces, no ground handling. It models
-*performance*, the way a flight-planning backend does, not handling.
-
-**Not certified performance data.** The three aircraft are plausible shapes, not
-real types; every number was chosen so the resulting climb rates and speeds land
-in the right neighbourhood. Nothing here may be used to plan a real flight.
-
-**Not a navigation database.** Nine hand-entered fixes rounded to about a
-hundred metres. A real one is an AIRAC-cycled product of hundreds of thousands
-of records under DO-200A data quality requirements.
-
-**No procedures.** No SIDs, STARs, approaches, holds, altitude or speed
-constraints, airspace, terrain or traffic. The flight ends levelled off 1 500
-feet over the destination; it does not land. On a short sector you will see the
-descent begin before the cruise level is reached — which is what happens in
-practice.
-
-**One wind for the whole airspace**, no turbulence, no ISA deviation, and fuel
-burn that does not feed back into weight.
+* **Not a flight dynamics model.** No attitude integration, no yaw or sideslip,
+  no lift equation, no stall, no control surfaces, no ground handling.
+* **Not real performance data.** The three aircraft are plausible shapes, not
+  real types; the numbers were chosen so that the climb rates and speeds come
+  out in the right neighbourhood. Nothing here may be used to plan a real
+  flight.
+* **Not a navigation database.** Nine fixes, typed in by hand, rounded to about
+  a hundred metres. The real thing is an AIRAC-cycled product of hundreds of
+  thousands of records held to DO-200A data quality requirements.
+* **No procedures.** No SIDs, STARs, approaches or holds; no altitude or speed
+  constraints, no airspace, terrain or traffic. The flight ends levelled off
+  1 500 feet above the destination — it does not land. On a short sector the
+  descent begins before the cruise level is reached, which is also what happens
+  in practice.
+* **One wind for the whole airspace.** No turbulence, no ISA deviation, and a
+  fuel burn that never feeds back into the weight.
 
 ## References
 
