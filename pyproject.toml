@@ -1,0 +1,13 @@
+[project]
+name = "flightsim"
+version = "0.1.0"
+description = "A small deterministic flight simulator in Python."
+requires-python = ">=3.9"
+dependencies = []          # by design: the standard library and nothing else
+
+[tool.ruff]
+line-length = 96
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "UP", "C4", "SIM"]   # not "I": its wrap style costs lines
