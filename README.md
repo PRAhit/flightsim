@@ -336,7 +336,14 @@ turn anticipation are all standard, and these are where they come from:
 
 MIT — see [LICENSE](LICENSE).
 
+## Built with Claude
+
+This project was built with [Claude](https://claude.ai), Anthropic's AI
+assistant, working through [Claude Code](https://claude.com/claude-code) — the
+model helped write and refactor the simulator, the tests and this README.
+
 ---
 
 *A learning project. The physics and the formulae are standard and come from
-the sources above; the code, the bugs, and the tests are mine.*
+the sources listed above; the code was written with Claude's help, and the
+design decisions, the bugs and the choice of what to build are mine.*
